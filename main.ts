@@ -9,13 +9,20 @@
 //   node main.ts                                  # writes /output/entry.png
 //   MAKEFUN_OUTPUT_DIR=out node main.ts           # writes out/entry.png
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
-const imagePath = join(here, 'entry.png');
+
+// The entry ships one image; the gate reads it whatever it is called. Prefer the
+// submitted name, and take the other spelling when only that one is committed.
+const imagePath = ['entry.png', 'entry.jpg']
+  .map((name) => join(here, name))
+  .find((path) => existsSync(path));
+if (!imagePath) throw new Error('no entry.png or entry.jpg beside main.ts');
 const image = readFileSync(imagePath);
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -74,5 +81,9 @@ if (width > MAX_SIDE || height > MAX_SIDE) {
 }
 
 mkdirSync(outDir, { recursive: true });
-writeFileSync(join(outDir, 'entry.png'), image);
-console.log(`wrote entry.png (${width}x${height}, ${image.byteLength} bytes) to ${outDir}`);
+const destination = join(outDir, 'entry.png');
+writeFileSync(destination, image);
+console.log(
+  `wrote ${destination}: ${width}x${height}, ${image.byteLength} bytes, ` +
+    `sha256 ${createHash('sha256').update(image).digest('hex')}`,
+);
